@@ -23,6 +23,8 @@
 # 
 # DM26-0661
 
+import time
+
 import json
 from contextlib import nullcontext
 from importlib import resources
@@ -86,6 +88,23 @@ class DroneAdaptMgr:
                 log_data = {}
 
             game.step(tactic_set, log_data)
+
+    def live_step(self, game: Game):
+        if not game.finished():
+            knowledge = game.get_knowledge()
+
+            tactic_set = self.decide(knowledge)
+
+            if self.current_strategy is not None:
+                log_data = {
+                    'strategy': self.current_strategy['name'],
+                }
+            else:
+                log_data = {}
+
+            game.step(tactic_set, log_data)
+            
+        
 
     def decide(self, knowledge: dict[Any, Any]) -> list[Any]:
         tactic_set = []

@@ -105,6 +105,8 @@ class Game:
         self.blackboard.register_key(key="poacher_visible", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="poacher_identified", access=py_trees.common.Access.READ)
 
+        self.visualizer = None
+
     def _sense(self):
         game_env.time_step = self.time_step
         self.poacher.sense(self.drone)
@@ -198,6 +200,7 @@ class Game:
         """
         Save the game data to a file.
         """
+
         self.data.to_csv(Path(output_dir).joinpath(GAME_DATA_CSV), index=False)
         self.drone.data.to_csv(Path(output_dir).joinpath(DRONE_DATA_CSV), index=False)
         self.poacher.data.to_csv(Path(output_dir).joinpath(POACHER_DATA_CSV), index=False)
@@ -228,3 +231,13 @@ class Game:
 
         visualizer = GameVisualizer(Path(output_dir))
         visualizer.run()
+
+    def live_visualize(self, output_dir) -> None:
+        
+        if self.visualizer is not None:
+            self.visualizer.step()
+        else:
+            from wpg.visualizer.live_gamevisualizer import GameVisualizer
+            self.visualizer = GameVisualizer(Path(output_dir))
+            self.visualizer.step()
+        

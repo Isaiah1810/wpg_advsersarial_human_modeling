@@ -38,6 +38,8 @@ hydra:
   job:
     name: wpg
 
+live: true
+
 # Default run number for multi-run experiments
 run: 0
 

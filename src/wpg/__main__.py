@@ -75,6 +75,13 @@ def main(cfg: DictConfig) -> None:
 
         adapt_mgr = hydra.utils.instantiate(cfg.adapt.manager, config)
 
+        if cfg.live:
+            while not game.finished():
+                adapt_mgr.live_step(game)
+                game.save_data(output_dir)
+                game.live_visualize(output_dir)
+            return
+
         adapt_mgr.run(game)
 
         log.info(f"Game ended with {game.get_result().name}")
