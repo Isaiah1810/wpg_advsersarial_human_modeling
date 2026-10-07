@@ -200,6 +200,14 @@ class Game:
                         self.poacher.move_to(Coordinates(x, y-1))
                         self.live_time = now 
                         return True
+                    case pygame.K_g:
+                        self.poacher.fire_gun()
+                        self.live_time = now
+                        return True
+                    case pygame.K_r:
+                        self.poacher.deny_gps()
+                        self.live_time = now
+                        return True
         return False
     
     def live_step(self, tactics, log_data) -> bool:
@@ -304,8 +312,8 @@ class Game:
         visualizer.run()
 
     def live_visualize(self, output_dir) -> None:
-        
         if self.visualizer is not None:
+            self.visualizer.drone_visible = self.poacher.drone_detected
             self.visualizer.step()
         else:
             from wpg.visualizer.live_gamevisualizer import GameVisualizer

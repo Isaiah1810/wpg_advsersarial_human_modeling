@@ -56,6 +56,8 @@ class GameVisualizer:
 
         self.output_dir = output_dir
 
+        self.drone_visible = False
+
         # Window and panel dimensions
         self.GRID_WIDTH, self.GRID_HEIGHT = 800, 800
         self.PANEL_WIDTH = 300
@@ -528,8 +530,9 @@ class GameVisualizer:
         self.draw_game_grid()
         self.draw_poacher()
         self.draw_tree_objects()
-        self.draw_drone()
-        self.draw_side_panel()
+        if self.drone_visible:
+            self.draw_drone()
+        #self.draw_side_panel()
 
         pygame.display.flip()
         self.frame += 1
