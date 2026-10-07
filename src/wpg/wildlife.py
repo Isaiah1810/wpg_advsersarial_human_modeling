@@ -28,6 +28,8 @@ from pathlib import Path
 import pandas as pd
 import py_trees
 
+import pygame
+
 from wpg.constants import (
     DRONE_DATA_CSV,
     GAME_DATA_CSV,
@@ -43,6 +45,7 @@ from wpg.gentypes import Coordinates
 from wpg.poacher import Poacher
 from wpg.utils import AppException, blackboard2dict
 
+import time
 
 class LoopState(Enum):
     """Loop states."""
@@ -68,6 +71,8 @@ class Game:
         """
         Initialize a new game.
         """
+        self.live_time = 0
+
         self.result = GameResult.UNKNOWN
         self.loop_state = LoopState.INIT
         self.moe_calculator = moe_calculator
@@ -167,6 +172,72 @@ class Game:
 
         return self.loop_state != LoopState.DONE
 
+    def select_action(self):
+        x = self.poacher.location.x
+        y = self.poacher.location.y
+
+        now = pygame.time.get_ticks()
+        if (now - self.live_time) < 100:
+            return False
+        
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                
+                match event.key:
+                    case pygame.K_a:
+                        self.poacher.move_to(Coordinates(x-1, y))
+                        self.live_time = now 
+                        return True
+                    case pygame.K_d:
+                        self.poacher.move_to(Coordinates(x+1, y))
+                        self.live_time = now 
+                        return True
+                    case pygame.K_s:
+                        self.poacher.move_to(Coordinates(x, y+1))
+                        self.live_time = now 
+                        return True
+                    case pygame.K_w:
+                        self.poacher.move_to(Coordinates(x, y-1))
+                        self.live_time = now 
+                        return True
+        return False
+    
+    def live_step(self, tactics, log_data) -> bool:
+        if self.loop_state == LoopState.DONE:
+            return False
+
+        if self.loop_state != LoopState.SENSED:
+            self._sense()
+
+        drone_status = self.drone.tick(tactics)
+
+        # execute selected action
+        self.drone.tock()
+
+        # these two methods must ensure that the added data has the sensed state before ticking
+        # and any action decided during the tick
+        self.drone.add_data_row(self.time_step, log_data)
+        self.poacher.add_data_row(self.time_step)
+
+        self.time_step += 1
+        self.loop_state = LoopState.ACTED
+
+        if drone_status != py_trees.common.Status.RUNNING or self.time_step >= self.timeout:
+            self.loop_state = LoopState.DONE
+
+            if self.time_step >= self.timeout and not self.drone.has_returned_to_base():
+                self.result = GameResult.DRONE_LOST  # ran out of time before RTB
+            elif drone_status == py_trees.common.Status.FAILURE:
+                self.result = GameResult.DRONE_LOST  # shot down
+            elif self.drone.get_measurements().poacher_identified:
+                self.result = GameResult.SUCCESS
+            elif self.drone.get_measurements().poacher_tracking_time == 0:
+                self.result = GameResult.POACHER_NOT_FOUND
+            else:
+                self.result = GameResult.POACHER_NOT_ID  # tracked it some but not identified
+
+        return self.loop_state != LoopState.DONE
+
     def get_result(self):
         """
         Get the result of the game.
@@ -215,7 +286,7 @@ class Game:
                                      'result': self.get_result().name,
                                      'moe': self.get_measure_of_effectiveness()}])
         game_result.to_csv(Path(output_dir).joinpath(GAME_RESULT_CSV), index=False)
-        print(game_result.to_string(index=False))
+        #print(game_result.to_string(index=False))
 
     def get_measure_of_effectiveness(self):
         if self.moe_calculator is None:

@@ -102,7 +102,8 @@ class DroneAdaptMgr:
             else:
                 log_data = {}
 
-            game.step(tactic_set, log_data)
+
+            game.live_step(tactic_set, log_data)
             
         
 

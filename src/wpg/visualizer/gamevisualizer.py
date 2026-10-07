@@ -49,7 +49,7 @@ from wpg.wildlife import GameResult
 
 class GameVisualizer:
     def __init__(self, output_dir):
-        pygame.init()
+        
 
         # Window and panel dimensions
         self.GRID_WIDTH, self.GRID_HEIGHT = 800, 800

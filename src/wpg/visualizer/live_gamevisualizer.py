@@ -485,7 +485,7 @@ class GameVisualizer:
                     self.playing = False
                     self.follow_live = False   
 
-                elif event.key == pygame.K_RIGHT or event.key == pygame.K_d:
+                elif event.key == pygame.K_RIGHT:
                     self.playing = False
                     if self.time_step < (self.n_steps - 1):
                         self.time_step += 1
@@ -493,7 +493,7 @@ class GameVisualizer:
                     self.follow_live = (self.time_step == self.n_steps - 1)
 
 
-                elif event.key == pygame.K_LEFT or event.key == pygame.K_a:
+                elif event.key == pygame.K_LEFT:
                     self.playing = False
                     self.follow_live = False
                     if self.time_step > 0:

@@ -37,6 +37,7 @@ from wpg.rng import init_rng_manager
 from wpg.utils import AppException
 from wpg.wildlife import Game
 
+import pygame
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def main(cfg: DictConfig) -> None:
@@ -75,11 +76,18 @@ def main(cfg: DictConfig) -> None:
 
         adapt_mgr = hydra.utils.instantiate(cfg.adapt.manager, config)
 
+        pygame.init()
+
         if cfg.live:
+            start = False
             while not game.finished():
+                if start:
+                    while not game.select_action():
+                        pass
                 adapt_mgr.live_step(game)
                 game.save_data(output_dir)
                 game.live_visualize(output_dir)
+                start = True
             return
 
         adapt_mgr.run(game)
