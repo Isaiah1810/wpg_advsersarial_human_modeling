@@ -1,0 +1,200 @@
+//////////////////////////////////////////////
+//////////////////////////////////////////////
+// probability that the poacher is hiding at any given moment is an
+// input parameter (HideProb) that degrades the effectiveness of the
+// drone's search and track actions.
+//
+// This version explicitly exposes the following drone state as
+// variables/formulas so they can be referenced directly in properties:
+//   - distance from poacher   -> distance            [bounded integer]
+//   - in area of interest     -> inAOI                [boolean formula]
+//   - shot down                -> shotDown             [boolean variable]
+//   - poacher visible          -> poacherVisible       [boolean formula]
+//   - poacher in ID range      -> poacherInIDRange     [boolean formula]
+//   - poacher identified       -> poacherIdentified    [boolean variable]
+//   - flying low                -> flyingLow            [boolean variable]
+//   - gps available             -> gpsAvailable         [boolean variable]
+//   - can navigate              -> canNavigate          [boolean formula]
+//
+// The action set (tau_tactic, return_to_base, transit_to_aoi,
+// search_poacher, track_and_id) is unchanged; the new variables are
+// updated as side effects of these same actions rather than through
+// any new actions.
+//
+// The mission is also bounded so the drone leaves base at most once:
+// a "deployed" flag blocks any second departure once it has returned
+// to base after its first trip out.
+//////////////////////////////////////////////
+//////////////////////////////////////////////
+mdp
+//////////////////////////////////////////////
+//////////////////////////////////////////////
+// Constant Values
+//////////////////////////////////////////////
+//////////////////////////////////////////////
+// Basic information for drone searching
+const int MaxDist = 20; // Maximum distance between poacher and drone
+const int DroneSeesPoacherRange = 6; // Distance when the drone can see the poacher
+const int PoacherSeesDroneRange = 4; // Distance when the poacher can see the drone
+const double SearchEffect = 0.99; // Search tactic's effectiveness
+const double TrackEffect = 0.80; // Track tactic's effectiveness
+const int MaxBatt = 200; // Battery life of the drone
+
+// constants governing the drone
+const double HideProb; // Probability of hiding
+const double ShotFiredProb=0.001; // probability of being shot down. shooting range same as seeing range
+const double AccuracyProb=0.001; // accuracy of poacher
+const double GpsJamProb=0.001; // probability of the GPS being jammed
+
+// getting the ID enum
+const int ID_null = 0;
+const int ID_one = 1;
+const int ID_done = 2;
+
+//////////////////////////////////////////////
+//////////////////////////////////////////////
+// Formulas
+//////////////////////////////////////////////
+//////////////////////////////////////////////
+// adjusted probabilities
+formula realHideProb = distance < PoacherSeesDroneRange ? HideProb : 0.0; // hiding only occurs when the poacher sees the drone
+formula realShotFiredProb = distance < PoacherSeesDroneRange ? ShotFiredProb : 0.0; // can only shoot if the poacher sees the drone
+
+// shortcuts
+formula poachInLineOfSight = poachVisible & (gpsAvail | flyingLow) & distance < DroneSeesPoacherRange;
+formula abort = (location=2 & batt<4) | (heardShot);
+formula nextID = gotPoachID = ID_done ? ID_done : ID_null;
+
+//////////////////////////////////////////////
+//////////////////////////////////////////////
+// Drone Behavior
+//////////////////////////////////////////////
+//////////////////////////////////////////////
+module drone
+	/////////////////////
+	/////////////////////
+	// Drone constants
+
+	// location of drone. 0:Base, 1:Transit, 2:AOI
+	location : [0..2] init 0;
+
+	// distance between drone and poacher. 0:same spot, Max:unknown
+	distance : [0..MaxDist] init MaxDist;
+
+	// visible: if drone is visible from air
+	poachVisible : bool init true;
+
+	// deployed: if the drone has been deployed already
+	deployed : bool init false;
+
+	// poacher identified. if we've tracked the poacher
+	gotPoachID : [ID_null..ID_done] init ID_null;
+
+	// battery of poacher
+	batt : [0..MaxBatt] init MaxBatt;
+
+	// flying altitude
+	flyingLow : bool init false;
+
+	// gps available
+	gpsAvail : bool init true;
+
+	// gunshot heard
+	heardShot : bool init false;
+
+	// shot down
+	shotDown : bool init false;
+
+	// strategy
+	strategy : [0..MaxStrat] init strat_T2AOI;
+
+	/////////////////////
+	/////////////////////
+	// Tau tactic
+	[tau_tactic] (batt > 0)
+		-> 1 : (batt' = batt-1) & (gotPoachID' = nextID);
+
+	/////////////////////
+	/////////////////////
+	// Transit to AOI
+	[transit_to_aoi] (location = 1 & batt > 0 & !shotDown)
+		-> 1 : (location' = 2) & (batt' = batt-1) & (distance' = MaxDist) & (gotPoachID' = nextID);
+	[transit_to_aoi] (location = 0 & !shotDown & !deployed)
+		-> 1 : (location'=1) & (batt' = MaxBatt) & (flyingLow' = false) & (gpsAvail'=true) & (gotPoachID' = nextID);
+	[transit_to_aoi] (location = 2 & !shotDown & batt > 0)
+		-> 1 : (batt' = batt-1) & (gotPoachID' = nextID);
+
+	/////////////////////
+	/////////////////////
+	// Return to base
+	[return_to_base] (location != 0 & batt > 0 & !shotDown & gpsAvail)
+		-> 1 : (location' = location-1) & (batt'=batt-1) & (flyingLow'=false) & (gotPoachID' = nextID);
+	[return_to_base] (location = 0 & batt > 0 & !shotDown)
+		-> 1 : (batt' = batt-1) & (gotPoachID' = nextID);
+
+	/////////////////////
+	/////////////////////
+	// Search for the poacher
+	[search_poacher] (location = 2 & batt > 0 & !shotDown)
+		-> realShotFiredProb * AccuracyProb: // if poacher shoots drone down
+			(batt' = batt-1) & (shotDown' = true) & (gotPoachID' = nextID)
+		 + realShotFiredProb * (1-AccuracyProb): // poacher misses shooting at drone
+			(batt' = batt-1) & (heardShot' = true) & (gotPoachID' = nextID)
+		 + (1-realShotFiredProb) * SearchEffect * realHideProb: // searching & poacher hides
+			(distance' = max(0,distance-1)) & (batt' = batt-1) & (poachVisible' = false) & (gotPoachID' = nextID)
+		 + (1-realShotFiredProb) * SearchEffect * (1-realHideProb): // search & poacher doesn't hide
+			(distance' = max(0,distance-1)) & (batt' = batt-1) & (poachVisible' = true) & (gotPoachID' = nextID)
+		 + (1-realShotFiredProb) * (1-SearchEffect) * realHideProb: // failed search & poacher hides
+			(batt' = batt-1) & (poachVisible' = false) & (gotPoachID' = nextID)
+		 + (1-realShotFiredProb) * (1-SearchEffect) * (1-realHideProb): // failed search and poacher doesn't hide
+			(poachVisible' = true) & (batt' = batt-1) & (gotPoachID' = nextID);
+
+	/////////////////////
+	/////////////////////
+	// Track the poacher
+	// poacher is visible and in range
+	[track_and_id] (location = 2 & poachInLineOfSight & batt > 0 & !shotDown)
+		-> realShotFiredProb * AccuracyProb: // if poacher shoots drone down
+			(batt' = batt-1) & (shotDown' = true) & (gotPoachID' = nextID)
+		 + realShotFiredProb * (1-AccuracyProb): // poacher misses shooting at drone
+			(batt' = batt-1) & (heardShot' = true) & (gotPoachID' = nextID)
+		 + (1-realShotFiredProb) * TrackEffect * realHideProb: // tracking & poacher hides
+			(batt' = batt-1) & (poachVisible' = false) & (gotPoachID' = nextID)
+		 + (1-realShotFiredProb) * TrackEffect * (1-realHideProb): // track & poacher doesn't hide
+			(batt' = batt-1) & (poachVisible' = true) & (gotPoachID' = min(ID_done, gotPoachID+1))
+		 + (1-realShotFiredProb) * (1-TrackEffect) * realHideProb: // failed track & poacher hides
+			(distance' = max(0,distance-1)) & (batt' = batt-1) & (poachVisible' = false) & (gotPoachID' = nextID)
+		 + (1-realShotFiredProb) * (1-TrackEffect) * (1-realHideProb): // failed track and poacher doesn't hide
+			(distance' = max(0,distance-1)) & (poachVisible' = true) & (batt' = batt-1) & (gotPoachID' = nextID);
+
+	/////////////////////
+	/////////////////////
+	// Evade fun fire
+	[evade_gun_fire] (location=2 & heardShot & batt>0 & !shotDown)
+		-> 1 : (batt'=batt-1) & (distance'=distance+1);
+
+
+	/////////////////////
+	/////////////////////
+	// Change flying height
+	[change_flying_height] (batt > 0 & !shotDown)
+		-> 1 : (flyingLow' = !flyingLow) & (batt' = batt-1) & (gotPoachID' = nextID);
+
+	/////////////////////
+	/////////////////////
+	// change strategy
+	// switch from current strategy to new strategy
+	// abstracting this from certain to +/- 1 since there is now a variable number of strategies
+	[change_strategy_up]   (batt > 0 & strategy < MaxStrat) -> 1 : (strategy'=strategy+1) & (batt'=batt-1);
+	[change_strategy_down] (batt > 0 & strategy > 0)        -> 1 : (strategy'=strategy-1) & (batt'=batt-1);
+
+endmodule
+
+label "PoacherIDd" = gotPoachID = ID_done;
+label "Successful" = gotPoachID = ID_done & location=0;
+label "DroneDies" = batt = 0;
+label "DroneShotDown" = shotDown;
+label "MissionOver" = abort;
+label "FullBattery" = batt = MaxBatt;
+label "DroneSeesPoacher" = poachInLineOfSight;
+label "GpsJammed" = !gpsAvail;
