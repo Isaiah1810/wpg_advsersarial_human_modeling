@@ -61,7 +61,8 @@ formula realHideProb = distance < PoacherSeesDroneRange ? HideProb : 0.0; // hid
 formula realShotFiredProb = distance < PoacherSeesDroneRange ? ShotFiredProb : 0.0; // can only shoot if the poacher sees the drone
 
 // shortcuts
-formula poachInLineOfSight = poachVisible & (gpsAvail | flyingLow) & distance < DroneSeesPoacherRange;
+formula RealDroneSeesRange = flyingLow ? DroneSeesPoacherRange + 2 : DroneSeesPoacherRange;
+formula poachInLineOfSight = (!flyingLow => poachVisible) & (gpsAvail | flyingLow) & distance < RealDroneSeesRange;
 formula abort = (location=2 & batt<4) | (heardShot);
 formula nextID = gotPoachID = ID_done ? ID_done : ID_null;
 

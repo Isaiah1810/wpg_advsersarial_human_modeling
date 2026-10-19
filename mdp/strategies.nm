@@ -29,22 +29,47 @@ formula T2AOI_post = location=2;
 //////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////
 module strategy_RTB
-	[return_to_base] (strategy=strat_RTB & RTB_pre) -> 1 : true;
-	[tau_tactic] (strategy=strat_RTB & !RTB_pre) -> 1 : true;
+	[return_to_base] (strategy=strat_RTB & RTB_invar) -> 1 : true;
+	[tau_tactic] (strategy=strat_RTB & !RTB_invar) -> 1 : true;
+	// blocked
+	[track_and_id] (strategy!=strat_RTB) -> 1 : true;
+	[search_poacher] (strategy!=strat_RTB) -> 1 : true;
+	[transit_to_aoi] (strategy!=strat_RTB) -> 1 : true;
+	[change_flying_height] (strategy!=strat_RTB) -> 1 : true;
+	[evade_gun_fire] (strategy!=strat_RTB) -> 1 : true;
 endmodule
 
 module strategy_TrackAndID
-	keepDistance : [0 .. MaxDist] init 0;
-	[track_and_id] (strategy=strat_TNI & TNI_pre) -> 1 : true;
-	[tau_tactic] (strategy=strat_TNI & !TNI_pre) -> 1 : true;
+	keepDistance : [0 .. MaxDist] init 2;
+	state : [0..6] init 0;
+	[track_and_id] (strategy=strat_TNI & state=0 & TNI_invar) -> 1 : true;
+	[tau_tactic] (strategy=strat_TNI & !TNI_invar) -> 1 : true;
+	// blocked
+	[return_to_base] (strategy!=strat_TNI) -> 1 : true;
+	[search_poacher] (strategy!=strat_TNI) -> 1 : true;
+	[transit_to_aoi] (strategy!=strat_TNI) -> 1 : true;
+	[change_flying_height] (strategy!=strat_TNI) -> 1 : true;
+	[evade_gun_fire] (strategy!=strat_TNI) -> 1 : true;
 endmodule
 
 module strategy_SearchPoacher
-	[search_poacher] (strategy=strat_SP & SP_pre) -> 1 : true;
-	[tau_tactic] (strategy=strat_SP & !SP_pre) -> 1 : true;
+	[search_poacher] (strategy=strat_SP & SP_invar) -> 1 : true;
+	[tau_tactic] (strategy=strat_SP & !SP_invar) -> 1 : true;
+	// blocked
+	[return_to_base] (strategy!=strat_SP) -> 1 : true;
+	[track_and_id] (strategy!=strat_SP) -> 1 : true;
+	[transit_to_aoi] (strategy!=strat_SP) -> 1 : true;
+	[change_flying_height] (strategy!=strat_SP) -> 1 : true;
+	[evade_gun_fire] (strategy!=strat_SP) -> 1 : true;
 endmodule
 
 module strategy_Transit_To_AOI
-	[transit_to_aoi] (strategy=strat_T2AOI & T2AOI_pre) -> 1 : true;
-	[tau_tactic] (strategy=strat_T2AOI & !T2AOI_pre) -> 1 : true;
+	[transit_to_aoi] (strategy=strat_T2AOI & T2AOI_invar) -> 1 : true;
+	[tau_tactic] (strategy=strat_T2AOI & !T2AOI_invar) -> 1 : true;
+	// blocked
+	[return_to_base] (strategy!=strat_T2AOI) -> 1 : true;
+	[track_and_id] (strategy!=strat_T2AOI) -> 1 : true;
+	[search_poacher] (strategy!=strat_T2AOI) -> 1 : true;
+	[change_flying_height] (strategy!=strat_T2AOI) -> 1 : true;
+	[evade_gun_fire] (strategy!=strat_T2AOI) -> 1 : true;
 endmodule
