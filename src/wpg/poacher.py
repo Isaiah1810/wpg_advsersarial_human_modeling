@@ -376,7 +376,7 @@ class Poacher:
             self.animal_detected = False
             distance = self.location.distance(animal)
             animal_in_detection_range = distance <= self.detection_range
-            print(distance, self.detection_range)
+
             if animal_in_detection_range:
 
                 rng = get_rng_manager().np_rng("poacher/detect_drone")
