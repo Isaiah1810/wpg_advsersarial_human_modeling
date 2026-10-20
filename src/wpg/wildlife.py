@@ -43,6 +43,7 @@ from wpg.game_env import game_env
 from wpg.game_map import CellType, GameMap
 from wpg.gentypes import Coordinates
 from wpg.poacher import Poacher
+from wpg.animal import Animal
 from wpg.utils import AppException, blackboard2dict
 
 import time
@@ -62,6 +63,8 @@ class GameResult(Enum):
     POACHER_NOT_FOUND = 2
     DRONE_LOST = 3
     UNKNOWN = 4
+    POACHER_ESCAPE_POACH = 5
+    POACHER_ESCAPE_NO_POACH = 6
 
 
 class Game:
@@ -84,11 +87,19 @@ class Game:
         poacher_area_size = config['map']['poacher_area_size']
         game_env.map = GameMap(map_width, map_height, poacher_area_size, config['map'])
         poacher_initial_coords = game_env.map.get_poacher_initial_position()
+        animal_initial_coords = game_env.map.get_animal_initial_position()
         self.poacher = Poacher(
             config['poacher'],
             poacher_initial_coords.x,
             poacher_initial_coords.y
         )
+
+        self.animal = Animal(
+            config=config['animal'],
+            x=animal_initial_coords.x,
+            y=animal_initial_coords.y
+        )
+        
         base_coords = game_env.map.get_base_coords()
 
         drone_config = config['drone']
@@ -97,7 +108,7 @@ class Game:
         self.time_step = 0
         self.data: pd.DataFrame = pd.DataFrame(
             columns=['time', 'poacher.x', 'poacher.y', 'drone.x', 'drone.y', 'drone.poacher_visible',
-                     'drone.identified poacher', 'poacher.detected drone'])
+                     'drone.identified poacher', 'poacher.detected drone', 'animal.x', 'animal.y'])
         self.drone_data: pd.DataFrame = pd.DataFrame(
             columns=['time', 'x', 'y', 'poacher_visible', 'identified_poacher'])
         self.poacher_data: pd.DataFrame = pd.DataFrame(columns=['time', 'x', 'y', 'drone_detected'])
@@ -114,7 +125,7 @@ class Game:
 
     def _sense(self):
         game_env.time_step = self.time_step
-        self.poacher.sense(self.drone)
+        self.poacher.sense(self.drone, self.animal.location)
         self.drone.sense(self.poacher)
 
         # actions executed in the last time step may have left events on the blackboard
@@ -176,6 +187,9 @@ class Game:
         x = self.poacher.location.x
         y = self.poacher.location.y
 
+        dr_x = self.drone.location.x
+        dr_y = self.drone.location.y
+
         now = pygame.time.get_ticks()
         if (now - self.live_time) < 100:
             return False
@@ -201,18 +215,27 @@ class Game:
                         self.live_time = now 
                         return True
                     case pygame.K_g:
-                        self.poacher.fire_gun()
+                        self.poacher.fire_gun((dr_x, dr_y))
                         self.live_time = now
                         return True
                     case pygame.K_r:
                         self.poacher.deny_gps()
                         self.live_time = now
                         return True
+                    case pygame.K_p:
+                        self.poacher.poach()
+                        self.live_time = now
+                        return True
         return False
     
+
     def live_step(self, tactics, log_data) -> bool:
         if self.loop_state == LoopState.DONE:
             return False
+
+
+        if self.poacher.poached:
+            self.animal.poached = True
 
         if self.loop_state != LoopState.SENSED:
             self._sense()
@@ -229,8 +252,8 @@ class Game:
 
         self.time_step += 1
         self.loop_state = LoopState.ACTED
-
-        if drone_status != py_trees.common.Status.RUNNING or self.time_step >= self.timeout:
+        
+        if drone_status != py_trees.common.Status.RUNNING or self.time_step >= self.timeout or self.poacher.escaped:
             self.loop_state = LoopState.DONE
 
             if self.time_step >= self.timeout and not self.drone.has_returned_to_base():
@@ -272,7 +295,9 @@ class Game:
             'drone.y': self.drone.location.y,
             'drone.poacher_visible': self.blackboard.poacher_visible,
             'drone.identified poacher': self.blackboard.poacher_identified,
-            'poacher.detected drone': self.poacher.drone_detected
+            'poacher.detected drone': self.poacher.drone_detected,
+            'animal.x': self.animal.location.x,
+            'animal.y': self.animal.location.y
         }
 
     def save_data(self, output_dir) -> None:
@@ -292,7 +317,8 @@ class Game:
         """
         game_result = pd.DataFrame([{'steps': self.time_step,
                                      'result': self.get_result().name,
-                                     'moe': self.get_measure_of_effectiveness()}])
+                                     'moe': self.get_measure_of_effectiveness(),
+                                     'poached': self.poacher.poached}])
         game_result.to_csv(Path(output_dir).joinpath(GAME_RESULT_CSV), index=False)
         #print(game_result.to_string(index=False))
 
@@ -314,6 +340,8 @@ class Game:
     def live_visualize(self, output_dir) -> None:
         if self.visualizer is not None:
             self.visualizer.drone_visible = self.poacher.drone_detected
+            self.visualizer.animal_poached = self.animal.poached
+            self.visualizer.animal_visible = self.poacher.animal_detected
             self.visualizer.step()
         else:
             from wpg.visualizer.live_gamevisualizer import GameVisualizer

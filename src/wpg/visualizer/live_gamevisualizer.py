@@ -57,10 +57,12 @@ class GameVisualizer:
         self.output_dir = output_dir
 
         self.drone_visible = False
+        self.animal_poached = False
+        self.animal_visible = False
 
         # Window and panel dimensions
         self.GRID_WIDTH, self.GRID_HEIGHT = 800, 800
-        self.PANEL_WIDTH = 300
+        self.PANEL_WIDTH = 0
         self.WIDTH = self.GRID_WIDTH + self.PANEL_WIDTH
         self.HEIGHT = self.GRID_HEIGHT
 
@@ -136,8 +138,11 @@ class GameVisualizer:
         full_cell_size_y = int(self.cell_height)
 
         poacher_scale = 0.5
+        animal_scale = 1.0
         self.poacher_sprites = self.load_sprites('sprites/poacher.png', target_size_x * poacher_scale,
                                                  target_size_y * poacher_scale, 1)
+        self.animal_sprites = self.load_sprites('sprites/animal.png', target_size_x * animal_scale, 
+                                                 target_size_y * animal_scale, 1)
         self.drone_sprites = self.load_sprites('sprites/drone.png', target_size_x, target_size_y, 2)
         drone_high_x = int(self.cell_width * 1.0)
         drone_high_y = int(self.cell_height * 1.0)
@@ -157,8 +162,8 @@ class GameVisualizer:
             CellType.BASE: self.load_sprites('sprites/base.png', full_cell_size_x, full_cell_size_y, 1),
         }
 
-        self._build_static_panel()
-        self._update_panel_values()
+        # self._build_static_panel()
+        # self._update_panel_values()
 
     def _read_csv_safe(self, name, **kwargs):
         try:
@@ -382,6 +387,13 @@ class GameVisualizer:
         sprite_index = self.frame % len(self.poacher_sprites) if self.poacher_sprites else 0
         self.draw_character(self.poacher_sprites, sprite_index, poacher_x, poacher_y, (255, 0, 0))
 
+    def draw_animal(self):
+        if self.n_steps == 0:
+            return
+        animal_x = int(self.df.loc[self.time_step, 'animal.x'])
+        animal_y = int(self.df.loc[self.time_step, 'animal.y'])
+        sprite_index = self.frame % len(self.poacher_sprites) if self.poacher_sprites else 0
+        self.draw_character(self.animal_sprites, sprite_index, animal_x, animal_y, (255, 0, 0))
     def draw_drone(self):
         if self.n_steps == 0:
             return
@@ -528,6 +540,9 @@ class GameVisualizer:
         self.handle_events()    
 
         self.draw_game_grid()
+        if not self.animal_poached and self.animal_visible:
+        #if not self.animal_poached:
+            self.draw_animal()
         self.draw_poacher()
         self.draw_tree_objects()
         if self.drone_visible:

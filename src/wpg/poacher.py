@@ -42,6 +42,7 @@ class IsDroneDetected(py_trees.behaviour.Behaviour):
         super().__init__(name)
         self.blackboard = self.attach_blackboard_client(namespace=POACHER_NAMESPACE)
         self.blackboard.register_key(key="drone_detected", access=py_trees.common.Access.READ)
+    
 
     def update(self):
         # Only succeed if the poacher has seen the drone
@@ -232,15 +233,20 @@ class Poacher:
         self.detection_probability = config['detection_probability']
         self.gun_range = config['gun_range']
         self.gun_accuracy = config['gun_accuracy']
+        self.poach_probability = config['poach_probability']
         self.gps_denial_probability = config['gps_denial_probability']
         self.hide_tree_max_distance = config['hide_tree_max_distance']
+        self.max_shooting_distance = config['max_shooting_distance']
         self.location = Coordinates(x, y)
         self.drone_detected = False
+        self.animal_detected = False
         self.actuation_plan = ActuationPlan('poacher')
         self.sensed_state = None
         self.data: pd.DataFrame = pd.DataFrame(columns=['time', 'x', 'y', 'drone_detected', 'action'])
 
         self.drone_mop = PoacherSideMoP()
+
+        self.poached = False
 
         # 1. Setup the Blackboard connection
         self.blackboard = py_trees.blackboard.Client(name="Poacher", namespace=POACHER_NAMESPACE)
@@ -257,10 +263,16 @@ class Poacher:
         self.event.shot_on_target = False
         self.event.register_key(key="deny_gps", access=py_trees.common.Access.WRITE)
         self.event.deny_gps = False
+        self.event.register_key(key="poach_attempted", access=py_trees.common.Access.WRITE)
+        self.event.poach_attempted = False
+        self.event.register_key(key="poach", access=py_trees.common.Access.WRITE)
+        self.event.poach = False
 
         self.poacher_bt = self.create_tree(self.behavior_version)
         self.action_monitor_visitor = ActionMonitorVisitor()
         self.poacher_bt.add_visitor(self.action_monitor_visitor)
+
+        self.escaped = False
 
     def create_tree(self, version: int):
         if version == 4 or version == 5:
@@ -341,7 +353,7 @@ class Poacher:
         poacher.add_children([deal_with_drone, do])
         return poacher
 
-    def sense(self, drone):
+    def sense(self, drone, animal=None):
         self.blackboard.poacher_coords = self.location
 
         distance = self.location.distance(drone.location)
@@ -359,6 +371,18 @@ class Poacher:
                 if rng.random() <= self.detection_probability:
                     self.drone_detected = True
 
+        # animal detection
+        if animal:
+            self.animal_detected = False
+            distance = self.location.distance(animal)
+            animal_in_detection_range = distance <= self.detection_range
+            print(distance, self.detection_range)
+            if animal_in_detection_range:
+
+                rng = get_rng_manager().np_rng("poacher/detect_drone")
+                if rng.random() <= self.detection_probability:
+                    self.animal_detected = True 
+    
         # drone in gun range
         self.blackboard.drone_in_gun_range = False  # assume not in range
         if distance <= self.gun_range:
@@ -411,16 +435,51 @@ class Poacher:
         elif target_y < next_y:
             next_y -= 1
         self.location = Coordinates(next_x, next_y)
-
+        # Coordinates(x=np.int64(19), y=np.int64(18))
+        if self.isEscaped():
+            self.escaped = True
         return self.location == target_coords
 
-    def fire_gun(self):
-        self.event.shot_fired = True
-        rng = get_rng_manager().np_rng("poacher/fire_gun")
-        self.event.shot_on_target = rng.random() <= self.gun_accuracy
+    # def fire_gun(self):
+    #     self.event.shot_fired = True
+    #     rng = get_rng_manager().np_rng("poacher/fire_gun")
+    #     self.event.shot_on_target = rng.random() <= self.gun_accuracy
 
-        return True  # done
+    #     return True  # done
+
+    def fire_gun(self, drone_pos: tuple):
+        self.event.shot_fired = True
+        if not self.drone_detected:
+            self.event.shot_on_target = False
+            return True
+        rng = get_rng_manager().np_rng("poacher/fire_gun")
+        hit_chance = self.gun_accuracy * max(0, 1 - (self._get_distance_to_drone(drone_pos) / self.max_shooting_distance))
+        rand_val = rng.random()
+        self.event.shot_on_target = rand_val <= hit_chance
+        print("hit chance:", hit_chance, " roll:", rand_val)
+        return True
+
+    def _get_distance_to_drone(self, drone_pos: tuple):
+        x_diff = abs(drone_pos[0] - self.location.x)
+        y_diff = abs(drone_pos[1] - self.location.y)
+        return x_diff + y_diff
+        
 
     def deny_gps(self):
         self.event.deny_gps = True
         return True  # done
+
+    def poach(self):
+        self.event.poach_attempted = True
+
+        rng = get_rng_manager().np_rng("poacher/fire_gun")
+        rand_val = rng.random()
+        self.event.poach = rand_val <= self.poach_probability
+        self.poached = self.event.poach
+        return True
+
+    def isEscaped(self):
+        x = self.location.x
+        y = self.location.y
+
+        return (x > 19) or (x < 0) or (y > 18) or (y < 1)

@@ -76,7 +76,12 @@ class GameMap:
         poacher_min_x = self.poacher_area_rect[0].x + (self.poacher_area_rect[1].x - self.poacher_area_rect[0].x) // 2
         self.initial_poacher_coords = Coordinates(
             rng.integers(poacher_min_x, self.poacher_area_rect[1].x + 1),
-            rng.integers(self.poacher_area_rect[0].y, self.poacher_area_rect[1].y + 1))
+            rng.integers(self.poacher_area_rect[0].y + 1, self.poacher_area_rect[1].y))
+
+        self.initial_animal_coords = Coordinates(
+            rng.integers(poacher_min_x, self.poacher_area_rect[1].x + 1),
+            rng.integers(self.poacher_area_rect[0].y + 1, self.poacher_area_rect[1].y))
+        
         self.grid[self.initial_poacher_coords.y][self.initial_poacher_coords.x] = CellType.SAVANNA
 
         self.connect_savanna()
@@ -144,6 +149,9 @@ class GameMap:
     def is_base(self, coordinates: Coordinates) -> bool:
         return self.is_kind(coordinates, CellType.BASE)
 
+    def is_oob(self, coordinates: Coordinates) -> bool:
+        return (coordinates.x >= self.width) or (coordinates.x < 0) or (coordinates.y >= self.height) or (coordinates.y < 0)
+
     def is_tree(self, coordinates: Coordinates) -> bool:
         """
         Check if there's a tree in a position.
@@ -154,6 +162,9 @@ class GameMap:
         Returns:
             bool: True if there's a tree in the position, False otherwise.
         """
+        if self.is_oob(coordinates):
+            return False
+
         return self.is_kind(coordinates, CellType.TREES)
 
     def find_closest(self, location: Coordinates, cell_type: CellType, only_poacher_area: bool = False,
@@ -429,3 +440,6 @@ class GameMap:
 
     def get_poacher_initial_position(self) -> Coordinates:
         return self.initial_poacher_coords
+
+    def get_animal_initial_position(self) -> Coordinates:
+        return self.initial_animal_coords

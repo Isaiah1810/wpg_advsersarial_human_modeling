@@ -93,6 +93,8 @@ drone:
 # Poacher configuration
 poacher:
 
+  max_shooting_distance: 5
+
   # Behavior of the poacher see reference table in the documentation.
   behavior: 1
 
@@ -112,8 +114,14 @@ poacher:
   gun_range: 1
 
   # Probability that the poacher can hit the drone with the gun.
-  gun_accuracy: 0.7
+  gun_accuracy: 0.3
 
   # For behaviors with GPS denial, the probability that the poacher will jam GPS signal.
   # If GPS is denied, it is denied for the entire simulation.
   gps_denial_probability: 1.0
+
+  poach_probability: 0.6
+
+
+animal:
+  animal_run: False

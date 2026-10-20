@@ -88,6 +88,7 @@ def main(cfg: DictConfig) -> None:
                 game.save_data(output_dir)
                 game.live_visualize(output_dir)
                 start = True
+            game.save_data(output_dir)
             return
 
         adapt_mgr.run(game)
