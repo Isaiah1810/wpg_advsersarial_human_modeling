@@ -1,0 +1,15 @@
+{
+  "seesDrone": {
+    "type": "bool"
+  },
+  "distance": {
+    "type": "int",
+    "range": [0,25]
+  },
+  "hiding" : {
+    "type": "bool"
+  },
+  "usingJammer" : {
+    "type" : "bool"
+  }
+}

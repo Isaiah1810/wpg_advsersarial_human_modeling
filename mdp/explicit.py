@@ -2,6 +2,19 @@ import stormpy
 import numpy as np
 from pathlib import Path
 import pandas as pd
+import json
+
+def get_state_space():
+	with open("config.json", "r", encoding="utf-8") as file:
+		config = json.load(file)
+	out: Dict[str, object] = {}
+	for name, spec in config.items():
+		if spec["type"] == "bool":
+			out[name] = bool
+		else:
+			lo, hi = spec["range"]
+			out[name] = (int(lo), int(hi))
+	return out
 
 ###############################
 # convert to explicit
@@ -11,20 +24,6 @@ import pandas as pd
 #	model		explicit MDP model of poacher
 ###############################
 def convert_to_explicit(fileDir):
-	# state space of model:
-	# ( distance, seesDrone, hiding, usingJammer, action )
-	raw_data = read_in_files(fileDir)
-	print(raw_data.to_string())
-# end function convert to explicit
-
-###############################
-# read in files
-# arguments:
-#	fileDir		directory where raw output is stored
-# output:
-#	data:		parsed data from output
-###############################
-def read_in_files(fileDir):
 	# state space of model:
 	# ( distance, seesDrone, hiding, usingJammer, action )
 	simData = pd.DataFrame({"distance":[], "seesDrone":[], "hiding":[], "usingJammer":[], "action":[]})
@@ -39,6 +38,11 @@ def read_in_files(fileDir):
 			# end if valid path
 		# end for time path
 	# end for date path
+	for col in ['seesDrone', 'hiding', 'usingJammer']:
+		simData[col] = simData[col].astype(bool)
+	for col in ['distance']:
+		simData[col] = simData[col].astype(int)
+	#simData = simData.reset_index(drop=True)
 	return simData
 # end function read in files
 
@@ -89,7 +93,7 @@ def read_in_file(dirt):
 	# > rename to using Jammer
 	drone["usingJammer"] = ~drone["gps_available"]
 	# get action of poacher
-	drone["action"] = poach["action"]
+	drone["action"] = drone["poacher_action"]
 
 	# get subset of dataframe necessary
 	colsToDrop = drone.columns.tolist()
